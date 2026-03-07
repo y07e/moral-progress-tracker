@@ -1,10 +1,9 @@
 import { useState } from 'react'
 import { getLessonsForDate, getClassLabel, DAY_NAMES, getLocalDateStr } from '../data/timetable'
-import { getCurriculumForGrade, findSubunitInfo } from '../data/curriculum'
 
 const WEEKDAYS = ['일', '월', '화', '수', '목', '금', '토']
 
-export default function Calendar({ records }) {
+export default function Calendar({ records, overrides = {} }) {
   const [currentDate, setCurrentDate] = useState(new Date())
 
   const year = currentDate.getFullYear()
@@ -32,7 +31,7 @@ export default function Calendar({ records }) {
   for (let i = 0; i < firstDay; i++) days.push(null)
   for (let d = 1; d <= daysInMonth; d++) {
     const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`
-    const lessons = getLessonsForDate(dateStr)
+    const lessons = getLessonsForDate(dateStr, overrides)
     const dayRecords = recordsByDate[dateStr] || []
     days.push({ day: d, date: dateStr, lessons, records: dayRecords })
   }
@@ -93,7 +92,7 @@ export default function Calendar({ records }) {
         <DayDetail
           date={selectedDay}
           records={recordsByDate[selectedDay] || []}
-          lessons={getLessonsForDate(selectedDay)}
+          lessons={getLessonsForDate(selectedDay, overrides)}
         />
       )}
     </div>
@@ -115,7 +114,7 @@ function DayDetail({ date, records, lessons }) {
               <th>교시</th>
               <th>반</th>
               <th>단원</th>
-              <th>차시</th>
+              <th>수업내용</th>
               <th>상태</th>
             </tr>
           </thead>
@@ -124,14 +123,12 @@ function DayDetail({ date, records, lessons }) {
               const rec = records.find(
                 (r) => r.grade === l.grade && r.classNum === l.classNum
               )
-              const cur = getCurriculumForGrade(l.grade)
-              const info = rec ? findSubunitInfo(cur, rec.subunitId) : null
               return (
                 <tr key={`${l.grade}-${l.classNum}`}>
                   <td>{l.period}교시</td>
                   <td><span className="table-class-badge">{getClassLabel(l.grade, l.classNum)}</span></td>
-                  <td>{info ? info.sub.title : '-'}</td>
-                  <td>{rec?.period || '-'}</td>
+                  <td>{rec?.unit || '-'}</td>
+                  <td>{rec?.content || '-'}</td>
                   <td>{rec ? <span className="saved-badge">완료</span> : <span className="pending-badge">미입력</span>}</td>
                 </tr>
               )

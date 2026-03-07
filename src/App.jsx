@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import Header from './components/Header'
 import DailyInput from './components/DailyInput'
 import Dashboard from './components/Dashboard'
@@ -6,61 +6,112 @@ import Calendar from './components/Calendar'
 import CurriculumView from './components/CurriculumView'
 import ProgressChart from './components/ProgressChart'
 import Settings from './components/Settings'
-import { getRecords, saveRecord, deleteRecord } from './utils/storage'
+import SetupWizard from './components/SetupWizard'
+import { getRecords, saveRecord, deleteRecord, getOverrides, addLessonOverride, removeLessonOverride, restoreLessonOverride } from './utils/storage'
 import { exportToExcel } from './utils/exportExcel'
+import { getConfig, saveConfig, hasConfig } from './utils/config'
+import { setActiveTimetable } from './data/timetable'
+function applyConfig(config) {
+  if (config?.timetable) setActiveTimetable(config.timetable)
+}
 
 export default function App() {
+  const [config, setConfigState] = useState(() => getConfig())
+  const [showSetup, setShowSetup] = useState(() => !hasConfig())
   const [activeTab, setActiveTab] = useState('input')
   const [records, setRecords] = useState(() => getRecords())
+  const [overrides, setOverrides] = useState(() => getOverrides())
 
-  const handleSave = useCallback((record) => {
+  // config가 있으면 시간표/교육과정 적용
+  useEffect(() => {
+    if (config) applyConfig(config)
+  }, [config])
+
+  const handleSetupComplete = (newConfig) => {
+    saveConfig(newConfig)
+    setConfigState(newConfig)
+    applyConfig(newConfig)
+    setShowSetup(false)
+  }
+
+  const handleEditSetup = () => {
+    setShowSetup(true)
+  }
+
+  // 마법사 표시
+  if (showSetup) {
+    return (
+      <div className="app">
+        <SetupWizard initialConfig={config} onComplete={handleSetupComplete} />
+      </div>
+    )
+  }
+
+  const handleSave = (record) => {
     const updated = saveRecord(record)
     setRecords(updated)
-  }, [])
+  }
 
-  const handleDelete = useCallback((id) => {
+  const handleDelete = (id) => {
     const updated = deleteRecord(id)
     setRecords(updated)
-  }, [])
+  }
 
-  const handleExport = useCallback(
-    (grade) => {
-      exportToExcel(records, grade)
-    },
-    [records]
-  )
+  const handleExport = (grade, subjectIdx = 0) => {
+    exportToExcel(records, grade, subjectIdx)
+  }
 
-  const handleRestore = useCallback((restoredRecords) => {
+  const handleRestore = (restoredRecords) => {
     localStorage.setItem('moral-progress-records', JSON.stringify(restoredRecords))
     setRecords(restoredRecords)
-  }, [])
+  }
+
+  const handleAddLesson = (date, lesson) => {
+    const updated = addLessonOverride(date, lesson)
+    setOverrides({ ...updated })
+  }
+
+  const handleRemoveLesson = (date, grade, classNum) => {
+    const updated = removeLessonOverride(date, grade, classNum)
+    setOverrides({ ...updated })
+  }
+
+  const handleRestoreLesson = (date, grade, classNum) => {
+    const updated = restoreLessonOverride(date, grade, classNum)
+    setOverrides({ ...updated })
+  }
 
   return (
     <div className="app">
-      <Header activeTab={activeTab} onTabChange={setActiveTab} />
+      <Header activeTab={activeTab} onTabChange={setActiveTab} config={config} />
 
       <main className="main-content">
         {activeTab === 'input' && (
           <DailyInput
             records={records}
+            overrides={overrides}
+            config={config}
             onSave={handleSave}
             onDelete={handleDelete}
+            onAddLesson={handleAddLesson}
+            onRemoveLesson={handleRemoveLesson}
+            onRestoreLesson={handleRestoreLesson}
           />
         )}
         {activeTab === 'dashboard' && (
-          <Dashboard records={records} />
+          <Dashboard records={records} overrides={overrides} config={config} />
         )}
         {activeTab === 'calendar' && (
-          <Calendar records={records} />
+          <Calendar records={records} overrides={overrides} />
         )}
         {activeTab === 'curriculum' && (
-          <CurriculumView records={records} onExport={handleExport} />
+          <CurriculumView records={records} onExport={handleExport} config={config} />
         )}
         {activeTab === 'chart' && (
-          <ProgressChart records={records} />
+          <ProgressChart records={records} config={config} />
         )}
         {activeTab === 'settings' && (
-          <Settings records={records} onRestore={handleRestore} />
+          <Settings records={records} onRestore={handleRestore} config={config} onEditSetup={handleEditSetup} />
         )}
       </main>
     </div>

@@ -1,6 +1,6 @@
 import { useState, useRef } from 'react'
 
-export default function Settings({ records, onRestore }) {
+export default function Settings({ records, onRestore, config, onEditSetup }) {
   const [message, setMessage] = useState(null)
   const fileRef = useRef()
 
@@ -14,7 +14,7 @@ export default function Settings({ records, onRestore }) {
     const data = {
       version: 1,
       exportDate: new Date().toISOString(),
-      app: '2026학년도 도덕과 진도 관리 프로그램',
+      app: config ? `${config.year}학년도 ${(config.subjects || []).filter(Boolean).join('·')}과 진도 관리 프로그램` : '진도 관리 프로그램',
       records,
     }
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
@@ -22,7 +22,7 @@ export default function Settings({ records, onRestore }) {
     const a = document.createElement('a')
     a.href = url
     const date = new Date().toISOString().slice(0, 10)
-    a.download = `도덕진도_백업_${date}.json`
+    a.download = `${(config?.subjects || []).filter(Boolean).join('·') || '진도'}_백업_${date}.json`
     a.click()
     URL.revokeObjectURL(url)
     showMessage(`백업 파일이 다운로드되었습니다. (${records.length}건)`)
@@ -94,6 +94,34 @@ export default function Settings({ records, onRestore }) {
         </div>
       )}
 
+      {/* 프로그램 설정 - 상단 강조 */}
+      <div className="settings-card settings-card-highlight">
+        <div className="settings-card-title">
+          <span className="sc-icon">🔧</span>
+          <h3>프로그램 설정</h3>
+        </div>
+        <p className="settings-desc">
+          학교, 과목, 학년/반, 시간표, 교과서 등을 수정합니다.
+        </p>
+        <div className="app-info" style={{ marginBottom: 12 }}>
+          <div className="info-row"><span>학교</span><span>{config?.schoolName || '-'}</span></div>
+          <div className="info-row"><span>과목</span><span>{(config?.subjects || []).filter(Boolean).join(', ') || '-'}</span></div>
+          <div className="info-row">
+            <span>담당</span>
+            <span>{config?.grades?.map((g) => `${g.grade}학년 ${g.classes.length}개반`).join(' + ') || '-'}</span>
+          </div>
+          {config?.grades?.map((g) => (
+            <div key={`${g.grade}-${g.subjectIdx ?? 0}`} className="info-row">
+              <span>{g.grade}학년 교과서</span>
+              <span>{[g.curriculumRevision && `${g.curriculumRevision}개정`, g.publisher, g.textbook].filter(Boolean).join(' · ') || '-'}</span>
+            </div>
+          ))}
+        </div>
+        <button className="btn-primary btn-lg" onClick={onEditSetup}>
+          ✏️ 설정 편집
+        </button>
+      </div>
+
       {/* 데이터 백업 */}
       <div className="settings-card">
         <div className="settings-card-title">
@@ -164,10 +192,7 @@ export default function Settings({ records, onRestore }) {
           <h3>앱 정보</h3>
         </div>
         <div className="app-info">
-          <div className="info-row"><span>프로그램</span><span>2026학년도 도덕과 진도 관리</span></div>
-          <div className="info-row"><span>학교</span><span>양산여자중학교</span></div>
-          <div className="info-row"><span>담당</span><span>1학년 도덕① 9개반 + 3학년 도덕② 1개반</span></div>
-          <div className="info-row"><span>교과서</span><span>동아출판 2022개정(1학년) / 2015개정(3학년)</span></div>
+          <div className="info-row"><span>프로그램</span><span>{config ? `${config.year}학년도 ${(config.subjects || []).filter(Boolean).join('·')}과 진도 관리` : '진도 관리 프로그램'}</span></div>
           <div className="info-row"><span>저장 방식</span><span>브라우저 localStorage</span></div>
         </div>
       </div>
