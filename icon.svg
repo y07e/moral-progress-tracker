@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#6366f1"/>
+      <stop offset="100%" style="stop-color:#8b5cf6"/>
+    </linearGradient>
+  </defs>
+  <!-- Background rounded square -->
+  <rect width="512" height="512" rx="96" fill="url(#bg)"/>
+  <!-- Book shape -->
+  <g transform="translate(256,240)">
+    <!-- Left page -->
+    <path d="M-10,-110 L-10,-110 Q-10,-120 -20,-120 L-120,-120 Q-140,-120 -140,-100 L-140,80 Q-140,100 -120,100 L-10,100 Z" fill="white" opacity="0.95"/>
+    <!-- Right page -->
+    <path d="M10,-110 L10,-110 Q10,-120 20,-120 L120,-120 Q140,-120 140,-100 L140,80 Q140,100 120,100 L10,100 Z" fill="white" opacity="0.85"/>
+    <!-- Spine -->
+    <rect x="-10" y="-120" width="20" height="220" fill="white" opacity="0.7" rx="4"/>
+    <!-- Lines on left page -->
+    <line x1="-110" y1="-70" x2="-30" y2="-70" stroke="#c7d2fe" stroke-width="5" stroke-linecap="round"/>
+    <line x1="-110" y1="-40" x2="-30" y2="-40" stroke="#c7d2fe" stroke-width="5" stroke-linecap="round"/>
+    <line x1="-110" y1="-10" x2="-30" y2="-10" stroke="#c7d2fe" stroke-width="5" stroke-linecap="round"/>
+    <line x1="-110" y1="20" x2="-60" y2="20" stroke="#c7d2fe" stroke-width="5" stroke-linecap="round"/>
+  </g>
+  <!-- Checkmark circle -->
+  <circle cx="370" cy="370" r="75" fill="#22c55e"/>
+  <path d="M330,370 L355,395 L410,340" fill="none" stroke="white" stroke-width="16" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>
