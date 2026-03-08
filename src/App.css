@@ -253,11 +253,11 @@ body {
 }
 
 .mini-tt-grid-wrap {
+  margin-top: 8px;
   padding: 10px 12px 12px;
   background: white;
   border: 1px solid var(--gray-200);
-  border-top: none;
-  border-radius: 0 0 var(--radius-lg) var(--radius-lg);
+  border-radius: var(--radius-lg);
   box-shadow: var(--shadow);
 }
 
