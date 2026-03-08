@@ -416,10 +416,7 @@ function WeeklyTimetable({ dayOfWeek, config }) {
   return (
     <div className="mini-timetable-wrap">
       <button className="mini-tt-toggle" onClick={() => setOpen(!open)}>
-        <span className="mini-tt-icon">📅</span>
-        <span className="mini-tt-label">주간 시간표</span>
-        <span className="mini-tt-summary">주 {totalLessons}시간</span>
-        <span className={`mini-tt-arrow ${open ? 'open' : ''}`}>▾</span>
+        📅 {open ? '시간표 접기' : '시간표 펼쳐보기'} · 주 {totalLessons}시간
       </button>
       {open && (
         <div className="mini-tt-grid-wrap">
