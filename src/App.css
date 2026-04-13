@@ -2659,6 +2659,87 @@ body {
   font-weight: 500;
 }
 
+/* ===== 자동 백업 ===== */
+.auto-backup-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 8px;
+}
+
+.auto-backup-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.9rem;
+}
+
+.auto-backup-row > span:first-child {
+  color: var(--gray-600);
+  font-weight: 500;
+}
+
+.backup-time-input {
+  padding: 4px 8px;
+  border: 1px solid var(--gray-200);
+  border-radius: 6px;
+  font-size: 0.9rem;
+  color: var(--gray-700);
+}
+
+.backup-last-date {
+  color: var(--success);
+  font-weight: 500;
+}
+
+.btn-sm {
+  padding: 5px 12px;
+  font-size: 0.82rem;
+}
+
+/* 토글 스위치 */
+.toggle-switch {
+  position: relative;
+  display: inline-block;
+  width: 44px;
+  height: 24px;
+}
+
+.toggle-switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.toggle-slider {
+  position: absolute;
+  cursor: pointer;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background-color: var(--gray-300);
+  transition: 0.3s;
+  border-radius: 24px;
+}
+
+.toggle-slider::before {
+  content: '';
+  position: absolute;
+  height: 18px;
+  width: 18px;
+  left: 3px;
+  bottom: 3px;
+  background: white;
+  transition: 0.3s;
+  border-radius: 50%;
+}
+
+.toggle-switch input:checked + .toggle-slider {
+  background-color: var(--primary);
+}
+
+.toggle-switch input:checked + .toggle-slider::before {
+  transform: translateX(20px);
+}
+
 /* ===== Setup Wizard ===== */
 .setup-wizard {
   max-width: 700px;
@@ -2681,6 +2762,36 @@ body {
 .setup-desc {
   font-size: 0.9rem;
   color: var(--gray-500);
+}
+
+.setup-restore {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px dashed var(--gray-200);
+}
+
+.btn-setup-restore {
+  padding: 10px 20px;
+  background: white;
+  border: 1.5px solid var(--primary-light);
+  color: var(--primary);
+  border-radius: var(--radius);
+  font-size: 0.88rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.btn-setup-restore:hover {
+  background: var(--primary-bg);
+  border-color: var(--primary);
+}
+
+.setup-restore-msg {
+  margin-top: 8px;
+  font-size: 0.82rem;
+}
+.setup-restore-msg.error {
+  color: #dc2626;
 }
 
 /* Steps indicator */

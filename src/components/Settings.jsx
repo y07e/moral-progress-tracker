@@ -1,20 +1,72 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
+import {
+  isFileSystemAccessSupported,
+  isAutoBackupEnabled,
+  setAutoBackupEnabled,
+  getBackupTime,
+  setBackupTime,
+  getLastBackupDate,
+  pickBackupDirectory,
+  getSavedDirName,
+  performBackup,
+  requestPermission,
+} from '../utils/autoBackup'
 
 export default function Settings({ records, onRestore, config, onEditSetup }) {
   const [message, setMessage] = useState(null)
   const fileRef = useRef()
+
+  // 자동 백업 상태
+  const [autoEnabled, setAutoEnabled] = useState(isAutoBackupEnabled)
+  const [backupTime, setBackupTimeState] = useState(getBackupTime)
+  const [backupDirName, setBackupDirName] = useState(null)
+  const [lastBackup, setLastBackup] = useState(getLastBackupDate)
+
+  useEffect(() => {
+    getSavedDirName().then((name) => setBackupDirName(name))
+  }, [])
 
   const showMessage = (text, type = 'success') => {
     setMessage({ text, type })
     setTimeout(() => setMessage(null), 4000)
   }
 
+  // 자동 백업 폴더 선택
+  const handlePickFolder = async () => {
+    try {
+      const name = await pickBackupDirectory()
+      setBackupDirName(name)
+      showMessage(`백업 폴더가 '${name}'으로 설정되었습니다.`)
+    } catch (err) {
+      if (err.name !== 'AbortError') {
+        showMessage(err.message, 'error')
+      }
+    }
+  }
+
+  // 수동으로 자동 백업 실행
+  const handleManualAutoBackup = async () => {
+    try {
+      const granted = await requestPermission()
+      if (!granted) {
+        showMessage('폴더 접근 권한이 필요합니다. 폴더를 다시 선택해주세요.', 'error')
+        return
+      }
+      const fileName = await performBackup(records, config)
+      setLastBackup(getLastBackupDate())
+      showMessage(`백업 완료: ${fileName}`)
+    } catch (err) {
+      showMessage(`백업 실패: ${err.message}`, 'error')
+    }
+  }
+
   // 백업 내보내기
   const handleExport = () => {
     const data = {
-      version: 1,
+      version: 2,
       exportDate: new Date().toISOString(),
       app: config ? `${config.year}학년도 ${(config.subjects || []).filter(Boolean).join('·')}과 진도 관리 프로그램` : '진도 관리 프로그램',
+      config,
       records,
     }
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
@@ -42,6 +94,12 @@ export default function Settings({ records, onRestore, config, onEditSetup }) {
         if (data.version && data.records) {
           // 앱에서 내보낸 백업 파일
           importRecords = data.records
+          // v2: config도 함께 복원
+          if (data.config) {
+            onRestore(importRecords.filter((r) => r.id && r.date && r.grade), data.config)
+            showMessage(`${importRecords.length}건의 기록과 설정을 불러왔습니다.`)
+            return
+          }
         } else if (Array.isArray(data)) {
           // 배열 형태의 레코드
           importRecords = data
@@ -121,6 +179,77 @@ export default function Settings({ records, onRestore, config, onEditSetup }) {
           ✏️ 설정 편집
         </button>
       </div>
+
+      {/* 자동 백업 */}
+      {isFileSystemAccessSupported() && (
+        <div className="settings-card">
+          <div className="settings-card-title">
+            <span className="sc-icon">🔄</span>
+            <h3>자동 백업</h3>
+          </div>
+          <p className="settings-desc">
+            매일 지정된 시간에 iCloud 등 원하는 폴더로 자동 백업합니다.
+          </p>
+
+          <div className="auto-backup-controls">
+            <div className="auto-backup-row">
+              <span>자동 백업</span>
+              <label className="toggle-switch">
+                <input
+                  type="checkbox"
+                  checked={autoEnabled}
+                  onChange={(e) => {
+                    const val = e.target.checked
+                    setAutoEnabled(val)
+                    setAutoBackupEnabled(val)
+                    if (val && !backupDirName) {
+                      handlePickFolder()
+                    }
+                  }}
+                />
+                <span className="toggle-slider"></span>
+              </label>
+            </div>
+
+            <div className="auto-backup-row">
+              <span>백업 시간</span>
+              <input
+                type="time"
+                value={backupTime}
+                onChange={(e) => {
+                  setBackupTimeState(e.target.value)
+                  setBackupTime(e.target.value)
+                }}
+                className="backup-time-input"
+              />
+            </div>
+
+            <div className="auto-backup-row">
+              <span>백업 폴더</span>
+              <button className="btn-secondary btn-sm" onClick={handlePickFolder}>
+                {backupDirName ? `📁 ${backupDirName}` : '📁 폴더 선택'}
+              </button>
+            </div>
+
+            {lastBackup && (
+              <div className="auto-backup-row">
+                <span>마지막 백업</span>
+                <span className="backup-last-date">{lastBackup}</span>
+              </div>
+            )}
+
+            {autoEnabled && backupDirName && (
+              <button
+                className="btn-primary btn-sm"
+                style={{ marginTop: 8 }}
+                onClick={handleManualAutoBackup}
+              >
+                ▶ 지금 백업 실행
+              </button>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* 데이터 백업 */}
       <div className="settings-card">

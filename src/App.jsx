@@ -11,6 +11,7 @@ import { getRecords, saveRecord, deleteRecord, getOverrides, addLessonOverride, 
 import { exportToExcel } from './utils/exportExcel'
 import { getConfig, saveConfig, hasConfig } from './utils/config'
 import { setActiveTimetable } from './data/timetable'
+import { startAutoBackupTimer, stopAutoBackupTimer } from './utils/autoBackup'
 function applyConfig(config) {
   if (config?.timetable) setActiveTimetable(config.timetable)
 }
@@ -27,6 +28,25 @@ export default function App() {
     if (config) applyConfig(config)
   }, [config])
 
+  // 자동 백업 타이머
+  useEffect(() => {
+    const cleanup = startAutoBackupTimer(
+      () => getRecords(),
+      () => getConfig(),
+      (fileName, error) => {
+        if (fileName) {
+          console.log(`[자동 백업] 완료: ${fileName}`)
+        } else {
+          console.warn(`[자동 백업] 실패: ${error}`)
+        }
+      }
+    )
+    return () => {
+      cleanup()
+      stopAutoBackupTimer()
+    }
+  }, [])
+
   const handleSetupComplete = (newConfig) => {
     saveConfig(newConfig)
     setConfigState(newConfig)
@@ -38,11 +58,21 @@ export default function App() {
     setShowSetup(true)
   }
 
+  const handleRestore = (restoredRecords, restoredConfig) => {
+    localStorage.setItem('moral-progress-records', JSON.stringify(restoredRecords))
+    setRecords(restoredRecords)
+    if (restoredConfig) {
+      saveConfig(restoredConfig)
+      setConfigState(restoredConfig)
+      applyConfig(restoredConfig)
+    }
+  }
+
   // 마법사 표시
   if (showSetup) {
     return (
       <div className="app">
-        <SetupWizard initialConfig={config} onComplete={handleSetupComplete} />
+        <SetupWizard initialConfig={config} onComplete={handleSetupComplete} onRestoreFromBackup={handleRestore} />
       </div>
     )
   }
@@ -59,11 +89,6 @@ export default function App() {
 
   const handleExport = (grade, subjectIdx = 0) => {
     exportToExcel(records, grade, subjectIdx)
-  }
-
-  const handleRestore = (restoredRecords) => {
-    localStorage.setItem('moral-progress-records', JSON.stringify(restoredRecords))
-    setRecords(restoredRecords)
   }
 
   const handleAddLesson = (date, lesson) => {

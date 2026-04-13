@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 
 const STEPS = ['시간표 설정', '교과서 설정']
 
@@ -49,8 +49,10 @@ function parseTimetableGrid(grid, gridSubjects, subjects) {
   return { timetable, grades }
 }
 
-export default function SetupWizard({ initialConfig, onComplete }) {
+export default function SetupWizard({ initialConfig, onComplete, onRestoreFromBackup }) {
   const [step, setStep] = useState(0)
+  const [restoreMsg, setRestoreMsg] = useState(null)
+  const restoreRef = useRef()
   const [config, setConfig] = useState(
     initialConfig || {
       schoolName: '',
@@ -61,6 +63,30 @@ export default function SetupWizard({ initialConfig, onComplete }) {
       timetable: { 1: [], 2: [], 3: [], 4: [], 5: [] },
     }
   )
+
+  const handleRestoreFile = (e) => {
+    const file = e.target.files[0]
+    if (!file) return
+    const reader = new FileReader()
+    reader.onload = (event) => {
+      try {
+        const data = JSON.parse(event.target.result)
+        if (data.version && data.records && data.config) {
+          const valid = data.records.filter((r) => r.id && r.date && r.grade)
+          onRestoreFromBackup(valid, data.config)
+          onComplete(data.config)
+        } else if (data.version && data.records) {
+          setRestoreMsg({ text: '이 백업 파일에는 설정 정보가 없습니다. 설정을 먼저 완료해주세요.', type: 'error' })
+        } else {
+          setRestoreMsg({ text: '올바른 백업 파일이 아닙니다.', type: 'error' })
+        }
+      } catch {
+        setRestoreMsg({ text: '파일을 읽을 수 없습니다.', type: 'error' })
+      }
+    }
+    reader.readAsText(file)
+    e.target.value = ''
+  }
 
   const subjects = (() => {
     const s = config.subjects || ['', '']
@@ -96,6 +122,15 @@ export default function SetupWizard({ initialConfig, onComplete }) {
       <div className="setup-header">
         <h1>진도 관리 프로그램 설정</h1>
         <p className="setup-desc">아래 단계를 따라 설정해주세요.</p>
+        {onRestoreFromBackup && !initialConfig && (
+          <div className="setup-restore">
+            <input ref={restoreRef} type="file" accept=".json" onChange={handleRestoreFile} style={{ display: 'none' }} />
+            <button className="btn-setup-restore" onClick={() => restoreRef.current.click()}>
+              📂 백업 파일에서 복원하기
+            </button>
+            {restoreMsg && <p className={`setup-restore-msg ${restoreMsg.type}`}>{restoreMsg.text}</p>}
+          </div>
+        )}
       </div>
 
       <div className="setup-steps">
