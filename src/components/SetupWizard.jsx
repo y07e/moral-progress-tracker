@@ -51,6 +51,56 @@ function parseTimetableGrid(grid, gridSubjects, subjects) {
 
 const EMPTY_TIMETABLE = () => ({ 1: [], 2: [], 3: [], 4: [], 5: [] })
 
+/**
+ * 붙여넣은 시간표 텍스트 파싱 (컴시간알리미/엑셀에서 표 복사 → 탭 구분)
+ * 지원 형식: "107도덕"(1학년 7반), "311도덕"(3학년 11반), "1-7", "3-11"
+ * 과목명이 있는 칸은 현재 과목명이 포함된 것만 인식 (창체 등 제외)
+ */
+function parsePastedTimetable(text, subjectName, subjectIdx) {
+  const tt = EMPTY_TIMETABLE()
+  const lines = text.split(/\r?\n/).map((l) => l.replace(/\u00a0/g, " "))
+  let period = 0
+  let count = 0
+  for (const rawLine of lines) {
+    if (!rawLine.trim()) continue
+    // 요일 헤더 행 스킵 (수업 코드 없이 요일만 있는 행)
+    if (/[월화수목금]/.test(rawLine) && !/\d{3}|\d+\s*-\s*\d+/.test(rawLine)) continue
+    let cells = rawLine.split('\t')
+    if (cells.length < 2) continue
+    // 첫 칸이 교시 라벨("1(09:00)", "3교시", "5")이면 교시 번호로 사용
+    const first = cells[0].trim()
+    const periodMatch = first.match(/^(\d{1,2})\s*(\(|교시|:|$)/)
+    const looksLikeLesson = /^\*?\d{3}/.test(first) || /^\d+\s*-\s*\d+/.test(first)
+    if (periodMatch && !looksLikeLesson) {
+      period = Number(periodMatch[1])
+      cells = cells.slice(1)
+    } else if (first === '' || first === '교시') {
+      cells = cells.slice(1)
+      period += 1
+    } else {
+      period += 1
+    }
+    if (period < 1 || period > MAX_PERIODS) continue
+    cells.slice(0, 5).forEach((cell, dayIdx) => {
+      const c = cell.trim()
+      if (!c) return
+      // 과목명이 붙어 있는 칸은 현재 과목만 인식 (예: "*109A_창체" 제외)
+      if (/[가-힣]/.test(c) && subjectName && !c.includes(subjectName)) return
+      let grade, classNum
+      const dash = c.match(/^\*?(\d+)\s*-\s*(\d+)/)
+      const code = c.match(/^\*?(\d)(\d{2})/)
+      if (dash) { grade = Number(dash[1]); classNum = Number(dash[2]) }
+      else if (code) { grade = Number(code[1]); classNum = Number(code[2]) }
+      else return
+      if (grade <= 0 || classNum <= 0) return
+      tt[dayIdx + 1].push({ period, grade, classNum, subjectIdx })
+      count += 1
+    })
+  }
+  Object.values(tt).forEach((l) => l.sort((a, b) => a.period - b.period))
+  return { timetable: tt, count }
+}
+
 /** 모든 학기 시간표에서 학급 목록(합집합) 추출. 기존 교과서 정보는 유지 */
 function gradesFromTimetables(timetables, subjects, existingGrades = []) {
   const gradeMap = {}
@@ -265,6 +315,53 @@ function StepTimetableGrid({ config, setConfig, update, subjects, updateSubject 
     })
   }
 
+  // 시간표 객체를 그리드에 한 번에 반영 (붙여넣기/복사용)
+  const applyTimetable = (tt) => {
+    const newGrid = {}
+    const newGridSubjects = {}
+    Object.entries(tt).forEach(([day, lessons]) => {
+      ;(lessons || []).forEach((l) => {
+        newGrid[`${day}-${l.period}`] = `${l.grade}-${l.classNum}`
+        newGridSubjects[`${day}-${l.period}`] = l.subjectIdx ?? 0
+      })
+    })
+    setGrid(newGrid)
+    setGridSubjects(newGridSubjects)
+    setConfig((prev) => {
+      const timetables = { ...(prev.timetables || {}), [prev.semester]: tt }
+      const grades = gradesFromTimetables(timetables, subjects, prev.grades)
+      return { ...prev, timetable: tt, timetables, grades }
+    })
+  }
+
+  // 붙여넣기 입력
+  const [showPaste, setShowPaste] = useState(false)
+  const [pasteText, setPasteText] = useState('')
+  const [pasteMsg, setPasteMsg] = useState(null)
+
+  const handlePasteApply = () => {
+    const { timetable, count } = parsePastedTimetable(pasteText, subjects[activeSubjectIdx], activeSubjectIdx)
+    if (count === 0) {
+      setPasteMsg({ type: 'error', text: '수업을 인식하지 못했습니다. 컴시간알리미나 엑셀에서 시간표 표를 그대로 복사해 붙여넣어주세요.' })
+      return
+    }
+    applyTimetable(timetable)
+    setPasteMsg({ type: 'success', text: `${count}개 수업을 인식해서 입력했습니다. 아래 그리드에서 확인 후 필요하면 수정하세요.` })
+    setPasteText('')
+  }
+
+  // 다른 학기 시간표 복사
+  const otherSem = config.semester === 1 ? 2 : 1
+  const otherTimetable = config.timetables?.[otherSem]
+  const otherHasLessons = otherTimetable && Object.values(otherTimetable).some((d) => d?.length > 0)
+
+  const handleCopyOther = () => {
+    if (!otherHasLessons) return
+    // 깊은 복사 후 현재 학기로 반영
+    applyTimetable(JSON.parse(JSON.stringify(otherTimetable)))
+    setPasteMsg({ type: 'success', text: `${otherSem}학기 시간표를 복사했습니다. 바뀐 수업만 수정하면 됩니다.` })
+  }
+
   const filledCount = Object.values(grid).filter((v) => v && /^\d+-\d+$/.test(v.trim())).length
 
   return (
@@ -337,6 +434,42 @@ function StepTimetableGrid({ config, setConfig, update, subjects, updateSubject 
         각 칸에 "학년-반" 형식으로 입력하세요. (예: 1-9, 3-11)
         {hasSecond && ' · 과목을 선택한 후 입력하면 해당 과목으로 배정됩니다.'}
       </p>
+
+      <div className="tt-quick-input" style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
+        <button type="button" className="btn-secondary btn-sm" onClick={() => { setShowPaste(!showPaste); setPasteMsg(null) }}>
+          📋 {showPaste ? '붙여넣기 입력 닫기' : '붙여넣기로 한 번에 입력'}
+        </button>
+        {otherHasLessons && (
+          <button type="button" className="btn-secondary btn-sm" onClick={handleCopyOther}>
+            📄 {otherSem}학기 시간표 복사해오기
+          </button>
+        )}
+      </div>
+
+      {showPaste && (
+        <div className="tt-paste-box" style={{ marginBottom: 12 }}>
+          <p className="setup-hint" style={{ marginBottom: 6 }}>
+            컴시간알리미 화면이나 엑셀에서 시간표 표를 그대로 복사(Ctrl+C)해서 아래에 붙여넣고 "시간표 인식"을 누르세요.
+            "107도덕"(1학년 7반), "311도덕"(3학년 11반), "1-7" 형식을 인식하며, 다른 과목·창체는 자동으로 제외됩니다.
+          </p>
+          <textarea
+            value={pasteText}
+            onChange={(e) => setPasteText(e.target.value)}
+            placeholder={'예)\n1(09:00)\t\t107도덕\t\t108도덕\t106도덕\n2(09:55)\t\t109도덕\t101도덕\t102도덕\t'}
+            rows={6}
+            style={{ width: '100%', fontFamily: 'monospace', fontSize: 13, padding: 8, border: '1px solid #d1d5db', borderRadius: 8, boxSizing: 'border-box' }}
+          />
+          <button type="button" className="btn-primary btn-sm" style={{ marginTop: 6 }} onClick={handlePasteApply} disabled={!pasteText.trim()}>
+            ✔ 시간표 인식
+          </button>
+        </div>
+      )}
+
+      {pasteMsg && (
+        <p className="setup-hint" style={{ color: pasteMsg.type === 'error' ? '#dc2626' : '#059669', fontWeight: 600, marginBottom: 10 }}>
+          {pasteMsg.text}
+        </p>
+      )}
 
       <div className="tt-grid-wrapper">
         <table className="tt-grid">

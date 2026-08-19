@@ -55,10 +55,18 @@ export default function App() {
     }
   }, [])
 
+  // config를 저장 후 마이그레이션된 형태로 다시 읽어 적용
+  // (옛 백업 파일의 config에는 학기별 시간표가 없어서 그대로 쓰면 안 됨)
+  const persistConfig = (rawConfig) => {
+    saveConfig(rawConfig)
+    const migrated = getConfig()
+    setConfigState(migrated)
+    applyConfig(migrated)
+    return migrated
+  }
+
   const handleSetupComplete = (newConfig) => {
-    saveConfig(newConfig)
-    setConfigState(newConfig)
-    applyConfig(newConfig)
+    persistConfig(newConfig)
     setShowSetup(false)
   }
 
@@ -70,9 +78,7 @@ export default function App() {
     localStorage.setItem('moral-progress-records', JSON.stringify(restoredRecords))
     setRecords(restoredRecords)
     if (restoredConfig) {
-      saveConfig(restoredConfig)
-      setConfigState(restoredConfig)
-      applyConfig(restoredConfig)
+      persistConfig(restoredConfig)
     }
   }
 
