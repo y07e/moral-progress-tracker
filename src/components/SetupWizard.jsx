@@ -1,4 +1,5 @@
 import { useState, useRef } from 'react'
+import * as XLSX from 'xlsx'
 
 const STEPS = ['시간표 설정', '교과서 설정']
 
@@ -350,6 +351,34 @@ function StepTimetableGrid({ config, setConfig, update, subjects, updateSubject 
     setPasteText('')
   }
 
+  // 엑셀 파일에서 시간표 인식
+  const excelRef = useRef()
+  const handleExcelFile = async (e) => {
+    const file = e.target.files[0]
+    if (!file) return
+    try {
+      const buf = await file.arrayBuffer()
+      const wb = XLSX.read(buf)
+      let best = null
+      // 모든 시트를 시도해서 가장 많은 수업이 인식되는 시트 사용
+      for (const name of wb.SheetNames) {
+        const rows = XLSX.utils.sheet_to_json(wb.Sheets[name], { header: 1, raw: false, defval: '' })
+        const text = rows.map((r) => r.map((c) => String(c ?? '')).join('\t')).join('\n')
+        const parsed = parsePastedTimetable(text, subjects[activeSubjectIdx], activeSubjectIdx)
+        if (!best || parsed.count > best.count) best = parsed
+      }
+      if (!best || best.count === 0) {
+        setPasteMsg({ type: 'error', text: '엑셀에서 수업을 인식하지 못했습니다. 시간표 표가 들어있는 파일인지 확인해주세요.' })
+        return
+      }
+      applyTimetable(best.timetable)
+      setPasteMsg({ type: 'success', text: `엑셀에서 ${best.count}개 수업을 인식해서 입력했습니다. 아래 그리드에서 확인 후 필요하면 수정하세요.` })
+    } catch {
+      setPasteMsg({ type: 'error', text: '엑셀 파일을 읽을 수 없습니다. (.xlsx, .xls, .csv 파일만 지원)' })
+    }
+    e.target.value = ''
+  }
+
   // 다른 학기 시간표 복사
   const otherSem = config.semester === 1 ? 2 : 1
   const otherTimetable = config.timetables?.[otherSem]
@@ -438,6 +467,16 @@ function StepTimetableGrid({ config, setConfig, update, subjects, updateSubject 
       <div className="tt-quick-input" style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
         <button type="button" className="btn-secondary btn-sm" onClick={() => { setShowPaste(!showPaste); setPasteMsg(null) }}>
           📋 {showPaste ? '붙여넣기 입력 닫기' : '붙여넣기로 한 번에 입력'}
+        </button>
+        <input
+          ref={excelRef}
+          type="file"
+          accept=".xlsx,.xls,.csv"
+          onChange={handleExcelFile}
+          style={{ display: 'none' }}
+        />
+        <button type="button" className="btn-secondary btn-sm" onClick={() => excelRef.current.click()}>
+          📊 엑셀 파일에서 입력
         </button>
         {otherHasLessons && (
           <button type="button" className="btn-secondary btn-sm" onClick={handleCopyOther}>
