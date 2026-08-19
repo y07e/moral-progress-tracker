@@ -39,9 +39,41 @@ export const DAY_NAMES = ['일', '월', '화', '수', '목', '금', '토']
 
 // 현재 활성 시간표 (config에서 설정됨)
 let _activeTimetable = DEFAULT_TIMETABLE
+// 학기별 시간표: { 1: {요일: [수업]}, 2: {요일: [수업]} }
+let _timetablesBySemester = null
+// 2학기 시작일 (YYYY-MM-DD). 이 날짜부터 2학기 시간표 적용
+let _semester2Start = null
 
 export function setActiveTimetable(tt) {
   _activeTimetable = tt || DEFAULT_TIMETABLE
+  _timetablesBySemester = null
+  _semester2Start = null
+}
+
+/** 학기별 시간표 등록. 날짜에 따라 자동으로 해당 학기 시간표가 적용된다. */
+export function setActiveTimetables(timetables, semester2Start) {
+  _timetablesBySemester = timetables || null
+  _semester2Start = semester2Start || null
+  _activeTimetable = getTimetableForDate(new Date())
+}
+
+/** 날짜가 속한 학기 번호 반환 (2학기 시작일 전이면 1) */
+export function getSemesterForDate(date) {
+  if (!_semester2Start) return 1
+  const dateStr = typeof date === 'string' ? date : getLocalDateStr(date)
+  return dateStr >= _semester2Start ? 2 : 1
+}
+
+/** 날짜에 해당하는 학기의 시간표 반환 */
+export function getTimetableForDate(date) {
+  if (_timetablesBySemester) {
+    const sem = getSemesterForDate(date)
+    const tt = _timetablesBySemester[sem]
+    if (tt) return tt
+    // 해당 학기 시간표가 없으면 있는 쪽으로 fallback
+    return _timetablesBySemester[sem === 1 ? 2 : 1] || _activeTimetable
+  }
+  return _activeTimetable
 }
 
 export function getActiveTimetable() {
@@ -51,7 +83,7 @@ export function getActiveTimetable() {
 export function getBaseLessonsForDate(date) {
   const d = typeof date === 'string' ? new Date(date) : date
   const day = d.getDay() // 0=일 ~ 6=토
-  return _activeTimetable[day] || []
+  return getTimetableForDate(date)[day] || []
 }
 
 export function getLessonsForDate(date, overrides = {}) {

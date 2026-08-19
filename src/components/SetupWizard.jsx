@@ -49,6 +49,36 @@ function parseTimetableGrid(grid, gridSubjects, subjects) {
   return { timetable, grades }
 }
 
+const EMPTY_TIMETABLE = () => ({ 1: [], 2: [], 3: [], 4: [], 5: [] })
+
+/** 모든 학기 시간표에서 학급 목록(합집합) 추출. 기존 교과서 정보는 유지 */
+function gradesFromTimetables(timetables, subjects, existingGrades = []) {
+  const gradeMap = {}
+  Object.values(timetables || {}).forEach((tt) => {
+    Object.values(tt || {}).forEach((lessons) => {
+      ;(lessons || []).forEach((l) => {
+        const subjectIdx = l.subjectIdx ?? 0
+        const gKey = `${l.grade}-${subjectIdx}`
+        if (!gradeMap[gKey]) gradeMap[gKey] = { grade: l.grade, subjectIdx, classes: new Set() }
+        gradeMap[gKey].classes.add(l.classNum)
+      })
+    })
+  })
+  return Object.values(gradeMap)
+    .sort((a, b) => a.subjectIdx - b.subjectIdx || a.grade - b.grade)
+    .map((info) => {
+      const existing = existingGrades.find((eg) => eg.grade === info.grade && eg.subjectIdx === info.subjectIdx)
+      return {
+        grade: info.grade,
+        subjectIdx: info.subjectIdx,
+        classes: [...info.classes].sort((a, b) => a - b),
+        textbook: existing?.textbook || subjects[info.subjectIdx] || '',
+        curriculumRevision: existing?.curriculumRevision || '',
+        publisher: existing?.publisher || '',
+      }
+    })
+}
+
 export default function SetupWizard({ initialConfig, onComplete, onRestoreFromBackup }) {
   const [step, setStep] = useState(0)
   const [restoreMsg, setRestoreMsg] = useState(null)
@@ -60,7 +90,9 @@ export default function SetupWizard({ initialConfig, onComplete, onRestoreFromBa
       year: new Date().getFullYear(),
       semester: 1,
       grades: [],
-      timetable: { 1: [], 2: [], 3: [], 4: [], 5: [] },
+      timetable: EMPTY_TIMETABLE(),
+      timetables: {},
+      semester2Start: '',
     }
   )
 
@@ -104,7 +136,11 @@ export default function SetupWizard({ initialConfig, onComplete, onRestoreFromBa
   const canNext = () => {
     if (step === 0) {
       if (!config.schoolName || !subjects[0]) return false
-      return Object.values(config.timetable).some((d) => d.length > 0)
+      const currentHas = Object.values(config.timetable).some((d) => d.length > 0)
+      const otherHas = Object.values(config.timetables || {}).some(
+        (tt) => tt && Object.values(tt).some((d) => d?.length > 0)
+      )
+      return currentHas || otherHas
     }
     if (step === 1) {
       return config.grades.every((g) => g.curriculumRevision && g.textbook?.trim())
@@ -114,7 +150,9 @@ export default function SetupWizard({ initialConfig, onComplete, onRestoreFromBa
 
   const handleFinish = () => {
     const cleanSubjects = subjects.filter(Boolean)
-    onComplete({ ...config, subjects: cleanSubjects })
+    const timetables = { ...(config.timetables || {}), [config.semester]: config.timetable }
+    const grades = gradesFromTimetables(timetables, cleanSubjects, config.grades)
+    onComplete({ ...config, subjects: cleanSubjects, timetables, grades })
   }
 
   return (
@@ -143,7 +181,7 @@ export default function SetupWizard({ initialConfig, onComplete, onRestoreFromBa
       </div>
 
       <div className="setup-body">
-        {step === 0 && <StepTimetableGrid config={config} setConfig={setConfig} update={update} subjects={subjects} updateSubject={updateSubject} />}
+        {step === 0 && <StepTimetableGrid key={config.semester} config={config} setConfig={setConfig} update={update} subjects={subjects} updateSubject={updateSubject} />}
         {step === 1 && <StepTextbook config={config} setConfig={setConfig} subjects={subjects} />}
       </div>
 
@@ -203,19 +241,28 @@ function StepTimetableGrid({ config, setConfig, update, subjects, updateSubject 
     }
     setGridSubjects(newGridSubjects)
 
-    const { timetable, grades } = parseTimetableGrid(newGrid, newGridSubjects, subjects)
+    const { timetable } = parseTimetableGrid(newGrid, newGridSubjects, subjects)
 
-    const existingGrades = config.grades || []
-    grades.forEach((g) => {
-      const existing = existingGrades.find((eg) => eg.grade === g.grade && eg.subjectIdx === g.subjectIdx)
-      if (existing) {
-        if (existing.textbook) g.textbook = existing.textbook
-        if (existing.curriculumRevision) g.curriculumRevision = existing.curriculumRevision
-        if (existing.publisher) g.publisher = existing.publisher
-      }
+    setConfig((prev) => {
+      const timetables = { ...(prev.timetables || {}), [prev.semester]: timetable }
+      const grades = gradesFromTimetables(timetables, subjects, prev.grades)
+      return { ...prev, timetable, timetables, grades }
     })
+  }
 
-    setConfig((prev) => ({ ...prev, timetable, grades }))
+  // 학기 전환: 현재 학기 시간표를 저장하고 새 학기 시간표를 불러온다 (key 변경으로 그리드 재초기화)
+  const changeSemester = (newSem) => {
+    if (newSem === config.semester) return
+    setConfig((prev) => {
+      const timetables = { ...(prev.timetables || {}), [prev.semester]: prev.timetable }
+      const nextTt = timetables[newSem] || EMPTY_TIMETABLE()
+      let semester2Start = prev.semester2Start
+      if (newSem === 2 && !semester2Start) {
+        const d = new Date()
+        semester2Start = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+      }
+      return { ...prev, semester: newSem, timetables, timetable: nextTt, semester2Start }
+    })
   }
 
   const filledCount = Object.values(grid).filter((v) => v && /^\d+-\d+$/.test(v.trim())).length
@@ -245,12 +292,27 @@ function StepTimetableGrid({ config, setConfig, update, subjects, updateSubject 
         </div>
         <div className="setup-field compact">
           <label>학기</label>
-          <select value={config.semester} onChange={(e) => update('semester', Number(e.target.value))}>
+          <select value={config.semester} onChange={(e) => changeSemester(Number(e.target.value))}>
             <option value={1}>1학기</option>
             <option value={2}>2학기</option>
           </select>
         </div>
+        {(config.semester === 2 || config.semester2Start) && (
+          <div className="setup-field compact">
+            <label>2학기 시작일</label>
+            <input
+              type="date"
+              value={config.semester2Start || ''}
+              onChange={(e) => update('semester2Start', e.target.value)}
+            />
+          </div>
+        )}
       </div>
+
+      <p className="setup-hint">
+        학기별 시간표는 따로 저장됩니다. 위에서 학기를 전환하면 해당 학기의 시간표를 입력·수정할 수 있고,
+        달력과 수업 기록 화면에는 날짜에 맞는 학기의 시간표가 자동으로 적용됩니다.
+      </p>
 
       {subjects[0] && (
         <div className="tt-grid-title">

@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react'
-import { getLessonsForDate, getBaseLessonsForDate, getClassLabel, DAY_NAMES, getLocalDateStr, getActiveTimetable } from '../data/timetable'
+import { getLessonsForDate, getBaseLessonsForDate, getClassLabel, DAY_NAMES, getLocalDateStr, getActiveTimetable, getTimetableForDate } from '../data/timetable'
 
 export default function DailyInput({ records, overrides = {}, config, onSave, onDelete, onAddLesson, onRemoveLesson, onRestoreLesson }) {
   const grades = config?.grades || []
@@ -190,7 +190,7 @@ export default function DailyInput({ records, overrides = {}, config, onSave, on
       </div>
 
       {/* 주간 시간표 */}
-      <WeeklyTimetable dayOfWeek={dayOfWeek} config={config} />
+      <WeeklyTimetable dayOfWeek={dayOfWeek} config={config} selectedDate={selectedDate} />
 
       {/* 오늘의 요약 카드 */}
       <div className="today-summary-card">
@@ -390,9 +390,10 @@ export default function DailyInput({ records, overrides = {}, config, onSave, on
 /* ===== 주간 시간표 미니 뷰 ===== */
 const MINI_DAYS = ['월', '화', '수', '목', '금']
 
-function WeeklyTimetable({ dayOfWeek, config }) {
+function WeeklyTimetable({ dayOfWeek, config, selectedDate }) {
   const [open, setOpen] = useState(false)
-  const timetable = getActiveTimetable()
+  // 선택한 날짜가 속한 학기의 시간표 표시
+  const timetable = selectedDate ? getTimetableForDate(selectedDate) : getActiveTimetable()
 
   // 최대 교시 계산
   const maxPeriod = useMemo(() => {

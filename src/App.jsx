@@ -10,14 +10,22 @@ import SetupWizard from './components/SetupWizard'
 import { getRecords, saveRecord, deleteRecord, getOverrides, addLessonOverride, removeLessonOverride, restoreLessonOverride } from './utils/storage'
 import { exportToExcel } from './utils/exportExcel'
 import { getConfig, saveConfig, hasConfig } from './utils/config'
-import { setActiveTimetable } from './data/timetable'
+import { setActiveTimetable, setActiveTimetables } from './data/timetable'
 import { startAutoBackupTimer, stopAutoBackupTimer } from './utils/autoBackup'
 function applyConfig(config) {
-  if (config?.timetable) setActiveTimetable(config.timetable)
+  if (config?.timetables && Object.keys(config.timetables).length > 0) {
+    setActiveTimetables(config.timetables, config.semester2Start)
+  } else if (config?.timetable) {
+    setActiveTimetable(config.timetable)
+  }
 }
 
 export default function App() {
-  const [config, setConfigState] = useState(() => getConfig())
+  const [config, setConfigState] = useState(() => {
+    const c = getConfig()
+    applyConfig(c) // 첫 렌더 전에 시간표 적용 (useEffect는 렌더 후 실행되어 반영이 늦음)
+    return c
+  })
   const [showSetup, setShowSetup] = useState(() => !hasConfig())
   const [activeTab, setActiveTab] = useState('input')
   const [records, setRecords] = useState(() => getRecords())

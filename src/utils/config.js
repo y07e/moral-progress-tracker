@@ -11,6 +11,41 @@ export function getConfig() {
   }
 }
 
+/** 2026학년도 2학기 도덕 시간표 (2026-08-19부터 적용) — 기존 사용자 자동 입력용 */
+const SEMESTER2_2026_TIMETABLE = {
+  1: [ // 월
+    { period: 3, grade: 1, classNum: 1, subjectIdx: 0 },
+    { period: 5, grade: 1, classNum: 4, subjectIdx: 0 },
+    { period: 6, grade: 3, classNum: 11, subjectIdx: 0 },
+  ],
+  2: [ // 화
+    { period: 1, grade: 1, classNum: 7, subjectIdx: 0 },
+    { period: 2, grade: 1, classNum: 9, subjectIdx: 0 },
+    { period: 4, grade: 1, classNum: 3, subjectIdx: 0 },
+    { period: 5, grade: 1, classNum: 8, subjectIdx: 0 },
+  ],
+  3: [ // 수
+    { period: 2, grade: 1, classNum: 1, subjectIdx: 0 },
+    { period: 3, grade: 1, classNum: 4, subjectIdx: 0 },
+    { period: 4, grade: 1, classNum: 6, subjectIdx: 0 },
+    { period: 6, grade: 3, classNum: 11, subjectIdx: 0 },
+  ],
+  4: [ // 목
+    { period: 1, grade: 1, classNum: 8, subjectIdx: 0 },
+    { period: 2, grade: 1, classNum: 2, subjectIdx: 0 },
+    { period: 4, grade: 1, classNum: 5, subjectIdx: 0 },
+    { period: 5, grade: 1, classNum: 3, subjectIdx: 0 },
+    { period: 7, grade: 1, classNum: 7, subjectIdx: 0 },
+  ],
+  5: [ // 금
+    { period: 1, grade: 1, classNum: 6, subjectIdx: 0 },
+    { period: 3, grade: 1, classNum: 2, subjectIdx: 0 },
+    { period: 4, grade: 1, classNum: 9, subjectIdx: 0 },
+    { period: 6, grade: 1, classNum: 5, subjectIdx: 0 },
+  ],
+}
+const SEMESTER2_2026_START = '2026-08-19'
+
 /** 기존 config를 새 스키마로 마이그레이션 */
 function migrateConfig(config) {
   if (!config) return null
@@ -33,6 +68,22 @@ function migrateConfig(config) {
   }))
 
   const result = { ...config, subjects, grades }
+
+  // 학기별 시간표 마이그레이션: 기존 단일 timetable → timetables[학기]
+  if (!result.timetables) {
+    const timetables = {}
+    if (result.timetable) timetables[result.semester || 1] = result.timetable
+    // 기존 사용자(2026학년도): 2학기 시간표 자동 입력
+    if (!timetables[2] && result.year === 2026) {
+      timetables[2] = SEMESTER2_2026_TIMETABLE
+      result.semester2Start = result.semester2Start || SEMESTER2_2026_START
+    }
+    result.timetables = timetables
+  }
+  if (result.timetables[2] && !result.semester2Start) {
+    result.semester2Start = SEMESTER2_2026_START
+  }
+
   // 레거시 필드 제거
   delete result.subject
   delete result.curriculumRevision
