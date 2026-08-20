@@ -1,4 +1,23 @@
+import { DEFAULT_TIMETABLE } from '../data/timetable'
+
 const CONFIG_KEY = 'app-config'
+
+/** 시간표를 비교 가능한 문자열로 정규화 (subjectIdx 무시) */
+function canonTimetable(tt) {
+  return JSON.stringify(
+    Object.fromEntries(
+      [1, 2, 3, 4, 5].map((d) => [
+        d,
+        ((tt || {})[d] || []).map((l) => `${l.period}-${l.grade}-${l.classNum}`).sort(),
+      ])
+    )
+  )
+}
+
+function isEmptyTimetable(tt) {
+  if (!tt) return true
+  return Object.values(tt).every((d) => !d || d.length === 0)
+}
 
 export function getConfig() {
   try {
@@ -80,6 +99,21 @@ function migrateConfig(config) {
     }
     result.timetables = timetables
   }
+
+  // 복구(2026): 학기만 2학기로 바꾸고 저장해서 2학기 칸에 1학기 시간표가 들어간 경우
+  // → 그 시간표를 1학기 칸으로 되돌리고 2학기 칸에는 실제 2학기 시간표를 넣는다
+  if (
+    result.year === 2026 &&
+    result.timetables[2] &&
+    canonTimetable(result.timetables[2]) === canonTimetable(DEFAULT_TIMETABLE)
+  ) {
+    if (isEmptyTimetable(result.timetables[1])) {
+      result.timetables = { ...result.timetables, 1: result.timetables[2] }
+    }
+    result.timetables = { ...result.timetables, 2: SEMESTER2_2026_TIMETABLE }
+    if (result.semester === 2) result.timetable = SEMESTER2_2026_TIMETABLE
+  }
+
   if (result.timetables[2] && !result.semester2Start) {
     result.semester2Start = SEMESTER2_2026_START
   }
