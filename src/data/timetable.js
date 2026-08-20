@@ -43,17 +43,21 @@ let _activeTimetable = DEFAULT_TIMETABLE
 let _timetablesBySemester = null
 // 2학기 시작일 (YYYY-MM-DD). 이 날짜부터 2학기 시간표 적용
 let _semester2Start = null
+// 학년도 (예: 2026). 다음 학년도 3월부터는 다시 1학기로 돌아간다
+let _schoolYear = null
 
 export function setActiveTimetable(tt) {
   _activeTimetable = tt || DEFAULT_TIMETABLE
   _timetablesBySemester = null
   _semester2Start = null
+  _schoolYear = null
 }
 
 /** 학기별 시간표 등록. 날짜에 따라 자동으로 해당 학기 시간표가 적용된다. */
-export function setActiveTimetables(timetables, semester2Start) {
+export function setActiveTimetables(timetables, semester2Start, schoolYear) {
   _timetablesBySemester = timetables || null
   _semester2Start = semester2Start || null
+  _schoolYear = schoolYear || null
   _activeTimetable = getTimetableForDate(new Date())
 }
 
@@ -61,7 +65,10 @@ export function setActiveTimetables(timetables, semester2Start) {
 export function getSemesterForDate(date) {
   if (!_semester2Start) return 1
   const dateStr = typeof date === 'string' ? date : getLocalDateStr(date)
-  return dateStr >= _semester2Start ? 2 : 1
+  if (dateStr < _semester2Start) return 1
+  // 다음 학년도(3월 1일)부터는 다시 1학기
+  if (_schoolYear && dateStr >= `${_schoolYear + 1}-03-01`) return 1
+  return 2
 }
 
 /** 날짜에 해당하는 학기의 시간표 반환 */

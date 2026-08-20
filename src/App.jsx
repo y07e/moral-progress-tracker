@@ -14,7 +14,7 @@ import { setActiveTimetable, setActiveTimetables } from './data/timetable'
 import { startAutoBackupTimer, stopAutoBackupTimer } from './utils/autoBackup'
 function applyConfig(config) {
   if (config?.timetables && Object.keys(config.timetables).length > 0) {
-    setActiveTimetables(config.timetables, config.semester2Start)
+    setActiveTimetables(config.timetables, config.semester2Start, config.year)
   } else if (config?.timetable) {
     setActiveTimetable(config.timetable)
   }
